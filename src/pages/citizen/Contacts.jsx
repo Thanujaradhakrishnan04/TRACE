@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Users, Phone, Mail, UserPlus, ShieldAlert, Trash2, CheckCircle2, Pencil } from 'lucide-react';
+import { Users, Phone, Mail, UserPlus, ShieldAlert, Trash2, CheckCircle2, Pencil, MapPin, AlertTriangle } from 'lucide-react';
 import { useStore } from '../../context/useStore';
 
+// Normalise phone numbers for comparison (strip spaces, dashes, country codes)
+const normalisePhone = (p) => p?.replace(/[\s\-().+]/g, '').replace(/^(91|0)/, '') || '';
+
 const Contacts = () => {
-  const { contacts, addContact, deleteContact, updateContact, triggerEmergency } = useStore();
+  const { contacts, addContact, deleteContact, updateContact, triggerEmergency, sendEmergencyAlert, currentUser } = useStore();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({ name: '', phone: '', email: '', relation: '' });
@@ -16,6 +19,24 @@ const Contacts = () => {
       setError('Name and Phone are required.');
       return;
     }
+
+    // ─── Prevent saving own phone as emergency contact ──────────────────────
+    const ownPhone = normalisePhone(currentUser?.phone);
+    const contactPhone = normalisePhone(form.phone);
+    if (ownPhone && contactPhone && ownPhone === contactPhone) {
+      setError('This is your registered number. Emergency contacts must be a different person.');
+      return;
+    }
+
+    // ─── Prevent duplicate contacts ──────────────────────────────────────────
+    const duplicate = contacts.find(
+      c => c.id !== editingId && normalisePhone(c.phone) === contactPhone
+    );
+    if (duplicate) {
+      setError(`This number is already saved as "${duplicate.name}".`);
+      return;
+    }
+
     try {
       if (editingId) {
         await updateContact(editingId, form);
@@ -186,10 +207,26 @@ const Contacts = () => {
                     )}
                   </div>
 
-                  <button onClick={() => triggerEmergency('Manual Check Alert')}
-                    className="mt-3 w-full py-2.5 bg-red-50 border border-red-100 rounded-xl text-red-600 font-bold text-xs flex items-center justify-center gap-2 hover:bg-red-100 transition-colors">
-                    <ShieldAlert size={13} /> Send Safety Check Alert
-                  </button>
+                  <div className="flex gap-2 mt-3">
+                    <button onClick={() => {
+                        if (navigator.geolocation) {
+                          navigator.geolocation.getCurrentPosition((pos) => {
+                            sendEmergencyAlert(`Manual SOS — Shared Location with ${contact.name}`, { lat: pos.coords.latitude, lng: pos.coords.longitude }, null, null, contact);
+                          }, () => {
+                            sendEmergencyAlert(`Manual SOS — Shared Location with ${contact.name}`, null, null, null, contact);
+                          });
+                        } else {
+                          sendEmergencyAlert(`Manual SOS — Shared Location with ${contact.name}`, null, null, null, contact);
+                        }
+                      }}
+                      className="flex-1 py-2.5 bg-blue-50 border border-blue-100 rounded-xl text-blue-600 font-bold text-xs flex items-center justify-center gap-2 hover:bg-blue-100 transition-colors">
+                      <MapPin size={13} /> Send GPS
+                    </button>
+                    <button onClick={() => triggerEmergency('Manual Check Alert')}
+                      className="flex-1 py-2.5 bg-red-50 border border-red-100 rounded-xl text-red-600 font-bold text-xs flex items-center justify-center gap-2 hover:bg-red-100 transition-colors">
+                      <ShieldAlert size={13} /> Send Alert
+                    </button>
+                  </div>
                 </div>
               </motion.div>
             ))

@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Home, ShieldAlert, Navigation, User, Bell, Menu, X, Shield, PhoneCall, Settings, Eye, LogOut, Users } from 'lucide-react';
+import { Home, ShieldAlert, Navigation, User, Bell, Menu, X, Shield, PhoneCall, Settings, Eye, LogOut, Users, MessageSquare } from 'lucide-react';
 import { useStore } from '../context/useStore';
 import { motion, AnimatePresence } from 'framer-motion';
+import FloatingChatWidget from '../components/chat/FloatingChatWidget';
+import AISnapshotModule from '../components/emergency/AISnapshotModule';
 
 const CitizenLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { currentUser, logout, isEmergencyMode, threatLevel } = useStore();
+  const { currentUser, logout, isEmergencyMode, threatLevel, activeEmergencyId } = useStore();
 
   const navItems = [
     { path: '/citizen/home', icon: Home, label: 'Home' },
@@ -23,6 +25,7 @@ const CitizenLayout = () => {
     { icon: Navigation, label: 'SafeWalk', path: '/citizen/tracking' },
     { icon: ShieldAlert, label: 'Emergency SOS', path: '/citizen/sos' },
     { icon: Bell, label: 'Alerts History', path: '/citizen/alerts' },
+    { icon: MessageSquare, label: 'Police Chat', path: '/citizen/chat' },
     { icon: PhoneCall, label: 'Contacts', path: '/citizen/contacts' },
     { icon: Users, label: 'Guardians', path: '/citizen/guardians' },
     { icon: Eye, label: 'Evidence Vault', path: '/citizen/vault' },
@@ -57,6 +60,23 @@ const CitizenLayout = () => {
           </button>
         </div>
       </div>
+
+      {/* Active Chat Uplink Banner */}
+      {isEmergencyMode && activeEmergencyId && location.pathname !== '/citizen/chat' && (
+        <div 
+          onClick={() => navigate('/citizen/chat')}
+          className="bg-blue-600 cursor-pointer animate-pulse px-4 py-2 flex items-center justify-between text-white font-extrabold text-xs tracking-wide shadow-lg border-b border-blue-700 hover:bg-blue-500 transition-colors z-20 flex-shrink-0"
+        >
+          <span className="flex items-center gap-2">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+            </span>
+            🚨 SECURE CHAT UPLINK ESTABLISHED WITH POLICE DISPATCH
+          </span>
+          <span className="bg-white/20 px-2 py-0.5 rounded text-[10px] uppercase font-black">Open Chat ➔</span>
+        </div>
+      )}
 
       {/* Sidebar Drawer */}
       <AnimatePresence>
@@ -106,6 +126,12 @@ const CitizenLayout = () => {
       <div className="flex-1 overflow-y-auto min-h-0">
         <Outlet />
       </div>
+
+      {/* Floating Police Chat Widget */}
+      <FloatingChatWidget />
+
+      {/* Headless AI Snapshot Module */}
+      <AISnapshotModule />
 
       {/* Bottom Navigation */}
       <div className="flex-shrink-0 bg-white border-t border-slate-100 z-30 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">

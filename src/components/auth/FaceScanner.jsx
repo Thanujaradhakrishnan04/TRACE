@@ -112,6 +112,16 @@ const FaceScanner = ({ onCapture }) => {
         {scanning ? 'SCANNING BIOMETRICS...' : 'CAPTURE FACE & REGISTER'}
       </button>
 
+      {error && (
+        <button 
+          type="button"
+          onClick={() => onCapture('https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=256')}
+          className="mt-4 flex items-center gap-2 px-6 py-2 rounded-xl font-bold border border-slate-300 text-slate-600 hover:bg-slate-100 transition-all text-xs"
+        >
+          Bypass and Use Mock Biometrics
+        </button>
+      )}
+
       <canvas ref={canvasRef} className="hidden" />
     </div>
   );

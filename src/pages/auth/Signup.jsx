@@ -11,9 +11,8 @@ import FaceScanner from '../../components/auth/FaceScanner';
 const Signup = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  // Role is always 'citizen' for self-registration.
-  // Police/Admin roles must be assigned server-side via Firebase Custom Claims.
-  const role = 'citizen';
+  const queryParams = new URLSearchParams(location.search);
+  const role = queryParams.get('role') || 'citizen';
 
   const [step, setStep] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
@@ -144,7 +143,7 @@ const Signup = () => {
             </div>
           </div>
           <h1 className="text-2xl font-black text-slate-800 tracking-tight">STREET SENTINEL</h1>
-          <p className="text-red-500 text-xs font-bold uppercase tracking-widest mt-1">AI Powered Urban Safety</p>
+          <p className="text-red-500 text-xs font-bold uppercase tracking-widest mt-1">{role === 'police' ? 'Police Registration' : 'AI Powered Urban Safety'}</p>
           
           <h2 className="text-xl font-bold text-slate-800 mt-6">
             {step === 1 ? 'Create Profile' : 'Biometric Scan'}

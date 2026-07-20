@@ -24,7 +24,15 @@ const EmergencySOS = () => {
       navigator.geolocation.getCurrentPosition((pos) => {
         const url = `https://maps.google.com/?q=${pos.coords.latitude},${pos.coords.longitude}`;
         navigator.share?.({ title: 'My Location', url }) ?? window.open(url, '_blank');
+        
+        // Instantly fire the SendGrid email dispatch bypassing any countdown
+        sendEmergencyAlert('Manual SOS — Shared Location', { lat: pos.coords.latitude, lng: pos.coords.longitude });
+      }, () => {
+        // Fallback if GPS fails
+        sendEmergencyAlert('Manual SOS — Shared Location (GPS Unavailable)');
       });
+    } else {
+      sendEmergencyAlert('Manual SOS — Shared Location (GPS Disabled)');
     }
   };
 
@@ -62,10 +70,16 @@ const EmergencySOS = () => {
             {isEmergencyMode ? '🔴 Emergency mode active — contacts alerted' : 'This will alert all your emergency contacts immediately'}
           </p>
           {isEmergencyMode && (
-            <button onClick={cancelEmergency}
-              className="mt-4 px-6 py-2 bg-emerald-500 text-white font-bold rounded-xl text-sm">
-              Cancel Emergency
-            </button>
+            <div className="flex flex-col items-center gap-3 mt-4">
+              <button onClick={() => navigate('/citizen/chat')}
+                className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-xl text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-blue-500/30 animate-pulse">
+                💬 Open Police Chat
+              </button>
+              <button onClick={cancelEmergency}
+                className="px-6 py-2 bg-emerald-500 text-white font-bold rounded-xl text-sm">
+                Cancel Emergency
+              </button>
+            </div>
           )}
         </motion.div>
 
@@ -140,10 +154,22 @@ const EmergencySOS = () => {
                       <p className="text-slate-500 text-xs">{c.relation}</p>
                     </div>
                   </div>
-                  <a href={`tel:${c.phone}`}
-                    className="w-10 h-10 bg-emerald-500/20 rounded-full flex items-center justify-center">
-                    <Phone size={16} className="text-emerald-400" />
-                  </a>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => {
+                        if (navigator.geolocation) {
+                          navigator.geolocation.getCurrentPosition((pos) => {
+                            sendEmergencyAlert(`Manual SOS — Shared Location with ${c.name}`, { lat: pos.coords.latitude, lng: pos.coords.longitude });
+                          });
+                        }
+                      }}
+                      className="w-10 h-10 bg-blue-500/20 rounded-full flex items-center justify-center" title="Send GPS">
+                      <MapPin size={16} className="text-blue-400" />
+                    </button>
+                    <a href={`tel:${c.phone}`}
+                      className="w-10 h-10 bg-emerald-500/20 rounded-full flex items-center justify-center">
+                      <Phone size={16} className="text-emerald-400" />
+                    </a>
+                  </div>
                 </div>
               ))}
             </div>

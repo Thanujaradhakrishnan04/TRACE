@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../../context/useStore';
-import { AlertTriangle, Clock, MapPin, Mail, MessageCircle, ShieldOff, RefreshCw } from 'lucide-react';
+import { AlertTriangle, Clock, MapPin, Mail, MessageCircle, ShieldOff, RefreshCw, Camera, Layers, WifiOff } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const Alerts = () => {
@@ -76,6 +76,11 @@ const Alerts = () => {
                     <span className="text-xs font-bold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-full">
                       {alert.type || 'Emergency'}
                     </span>
+                    {alert.meshRelayed && (
+                      <span className="flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-100 px-2.5 py-1 rounded-full animate-pulse">
+                        <WifiOff size={10} /> MESH NODE
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -93,15 +98,27 @@ const Alerts = () => {
                       {alert.location.lat.toFixed(4)}, {alert.location.lng.toFixed(4)} — View on Map
                     </a>
                   )}
+                  {alert.floorData?.floorLevel && (
+                    <div className="flex items-center gap-2 text-indigo-500 text-xs font-bold bg-indigo-50 px-2 py-1 rounded-lg w-max mt-1 border border-indigo-100">
+                      <Layers size={13} />
+                      {alert.floorData.floorLevel}
+                    </div>
+                  )}
+                  {alert.snapshotMetadata?.hasImage && (
+                    <div className="flex items-center gap-2 text-emerald-600 text-xs font-bold bg-emerald-50 px-2 py-1 rounded-lg w-max mt-1 border border-emerald-100">
+                      <Camera size={13} />
+                      Snapshot Captured • AI: {alert.snapshotMetadata.aiDetection.join(', ')}
+                    </div>
+                  )}
                 </div>
 
                 {/* Delivery Status */}
                 <div className="flex gap-3">
-                  <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${alert.emailStatus === 'SUCCESS' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                    <Mail size={11} /> Email {alert.emailStatus === 'SUCCESS' ? '✓' : '—'}
+                  <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${alert.emailStatus === 'SUCCESS' ? 'bg-emerald-100 text-emerald-700' : alert.emailStatus === 'QUEUED_MESH' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
+                    <Mail size={11} /> Email {alert.emailStatus === 'SUCCESS' ? '✓' : alert.emailStatus === 'QUEUED_MESH' ? '⏳' : '—'}
                   </div>
-                  <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${alert.smsStatus === 'SUCCESS' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                    <MessageCircle size={11} /> WhatsApp {alert.smsStatus === 'SUCCESS' ? '✓' : '—'}
+                  <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${alert.smsStatus === 'SUCCESS' ? 'bg-emerald-100 text-emerald-700' : alert.smsStatus === 'QUEUED_MESH' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
+                    <MessageCircle size={11} /> WhatsApp {alert.smsStatus === 'SUCCESS' ? '✓' : alert.smsStatus === 'QUEUED_MESH' ? '⏳' : '—'}
                   </div>
                 </div>
               </motion.div>

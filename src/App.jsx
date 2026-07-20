@@ -25,12 +25,17 @@ import EvidenceVault from './pages/citizen/EvidenceVault';
 import Alerts from './pages/citizen/Alerts';
 import Contacts from './pages/citizen/Contacts';
 import Guardians from './pages/citizen/Guardians';
+import SystemHealth from './pages/citizen/SystemHealth';
+import CitizenChat from './pages/citizen/CitizenChat';
+import Diagnostics from './pages/citizen/Diagnostics';
 import EmergencyOverlay from './components/ui/EmergencyOverlay';
 
 // Police Pages
 import PoliceLayout from './layouts/PoliceLayout';
 import { PoliceDashboard } from './pages/PoliceDashboard';
 import PoliceMap from './pages/police/PoliceMap';
+import TacticalCommand from './pages/police/TacticalCommand';
+import PoliceChat from './pages/police/PoliceChat';
 
 // Admin Pages
 import AdminLayout from './layouts/AdminLayout';
@@ -54,9 +59,38 @@ function App() {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
+    // Global Geolocation Watcher to keep lastKnownLocation fresh
+    let watchId;
+    if (typeof navigator !== 'undefined' && 'geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          useStore.setState({
+            lastKnownLocation: { lat: pos.coords.latitude, lng: pos.coords.longitude },
+            gpsActive: true
+          });
+        },
+        (err) => console.warn('Global initial GPS error:', err),
+        { enableHighAccuracy: true }
+      );
+
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          useStore.setState({
+            lastKnownLocation: { lat: pos.coords.latitude, lng: pos.coords.longitude },
+            gpsActive: true
+          });
+        },
+        (err) => console.warn('Global GPS watch error:', err),
+        { enableHighAccuracy: true, maximumAge: 10000, timeout: 10000 }
+      );
+    }
+
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      if (watchId !== undefined) {
+        navigator.geolocation.clearWatch(watchId);
+      }
     };
   }, [setOfflineStatus]);
 
@@ -99,14 +133,17 @@ function App() {
             <Route path="profile" element={<Profile />} />
             <Route path="settings" element={<Settings />} />
             <Route path="vault" element={<EvidenceVault />} />
+            <Route path="health" element={<SystemHealth />} />
+            <Route path="chat" element={<CitizenChat />} />
+            <Route path="diagnostics" element={<Diagnostics />} />
           </Route>
 
           {/* Police Routes */}
           <Route path="/police" element={<ProtectedRoute requiredRole="police"><PoliceLayout /></ProtectedRoute>}>
             <Route path="home" element={<PoliceDashboard />} />
             <Route path="map" element={<PoliceMap />} />
-            <Route path="status" element={<MockDashboard role="Police Status" />} />
-            <Route path="settings" element={<MockDashboard role="Police Settings" />} />
+            <Route path="tactical" element={<TacticalCommand />} />
+            <Route path="chat" element={<PoliceChat />} />
           </Route>
 
           {/* Admin Routes */}

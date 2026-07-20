@@ -3,6 +3,9 @@ import { Activity, Mic } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export const StatusCard = ({ isMonitoring, decibels }) => {
+  // Convert negative dBFS (-100 to 0) to positive dBSPL-like scale (0 to 100)
+  const displayDb = Math.max(0, Math.min(100, Math.round(decibels + 100)));
+
   return (
     <div className="glass-panel p-6 rounded-2xl w-full max-w-md mx-auto mt-4 shadow-sm relative overflow-hidden">
       <div className="flex justify-between items-center mb-4">
@@ -27,14 +30,14 @@ export const StatusCard = ({ isMonitoring, decibels }) => {
           <span className="text-sm font-medium text-slate-500 flex items-center gap-2">
             <Mic size={16} /> Ambient Noise Level
           </span>
-          <span className="text-sm font-bold text-slate-700">{decibels} dB</span>
+          <span className="text-sm font-bold text-slate-700">{displayDb} dB</span>
         </div>
         
         {/* Decibel Meter Bar */}
         <div className="w-full h-3 bg-slate-200 rounded-full overflow-hidden flex">
           <motion.div 
             className="h-full bg-gradient-to-r from-emerald-400 via-amber-400 to-primary-red"
-            animate={{ width: `${Math.min(decibels, 100)}%` }}
+            animate={{ width: `${displayDb}%` }}
             transition={{ type: 'spring', bounce: 0, duration: 0.2 }}
           />
         </div>

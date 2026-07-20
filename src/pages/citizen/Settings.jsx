@@ -103,6 +103,15 @@ const Settings = () => {
             <span className="text-slate-400 text-xs font-bold">Open →</span>
           </button>
 
+          <button onClick={() => navigate('/citizen/diagnostics')}
+            className="w-full flex items-center justify-between p-4 bg-white border border-slate-100 rounded-2xl shadow-sm hover:bg-slate-50 transition-colors">
+            <div className="flex items-center gap-3">
+              <Mic size={18} className="text-red-500" />
+              <span className="font-bold text-sm text-slate-800">Microphone Diagnostics</span>
+            </div>
+            <span className="text-slate-400 text-xs font-bold">Open →</span>
+          </button>
+
           <button onClick={clearCache}
             className="w-full flex items-center justify-center gap-2 p-4 bg-white border border-red-200 text-red-500 rounded-2xl shadow-sm hover:bg-red-50 transition-colors font-bold text-sm">
             <Trash2 size={16} /> Clear All Local Data

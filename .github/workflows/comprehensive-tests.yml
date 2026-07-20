@@ -1,0 +1,214 @@
+name: 🏆 Comprehensive Test Suite (ECE, Appium, Security)
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+    branches:
+      - 'Rohithnayini09@gmail.com'
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  ece-test-report:
+    name: 🧪 ECE Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: 📦 Install Frontend Dependencies
+        run: npm ci
+
+      - name: 📦 Install Backend Dependencies
+        run: npm ci
+        working-directory: ./server
+
+      - name: 🔐 Create Frontend .env
+        run: |
+          cat > .env << 'ENVEOF'
+          VITE_FIREBASE_API_KEY=${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN=${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID=${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET=${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID=${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID=${{ secrets.VITE_FIREBASE_APP_ID }}
+          VITE_BACKEND_URL=http://localhost:4000
+          ENVEOF
+
+      - name: 🔐 Create Backend .env
+        run: |
+          cat > .env << 'ENVEOF'
+          PORT=4000
+          FIREBASE_PROJECT_ID=${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          GMAIL_USER=${{ secrets.GMAIL_USER }}
+          GMAIL_PASS=${{ secrets.GMAIL_PASS }}
+          TWILIO_ACCOUNT_SID=${{ secrets.TWILIO_ACCOUNT_SID }}
+          TWILIO_AUTH_TOKEN=${{ secrets.TWILIO_AUTH_TOKEN }}
+          TWILIO_PHONE=${{ secrets.TWILIO_PHONE }}
+          GOOGLE_APPLICATION_CREDENTIALS=${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
+          ENVEOF
+        working-directory: ./server
+
+      - name: 🏗️ Build Frontend for CI
+        run: |
+          sed -i "s/import basicSsl from '@vitejs\/plugin-basic-ssl';//g" vite.config.js
+          sed -i "s/basicSsl(),//g" vite.config.js
+          npm run build
+        env:
+          NODE_ENV: production
+
+      - name: 🚀 Start Backend Server
+        run: |
+          cd server
+          node server.js &
+          echo "BACKEND_PID=$!" >> $GITHUB_ENV
+        env:
+          PORT: 4000
+
+      - name: 🌐 Serve Frontend via HTTP
+        run: |
+          npx --yes serve@latest dist --listen 5173 --no-clipboard &
+          echo "FRONTEND_PID=$!" >> $GITHUB_ENV
+
+      - name: ⏳ Wait for Servers to Be Ready
+        run: |
+          echo "Waiting for frontend on port 5173..."
+          timeout 60 bash -c 'until curl -sf http://localhost:5173 > /dev/null; do sleep 2; done'
+          echo "✅ Frontend is up"
+          echo "Waiting for backend on port 4000..."
+          timeout 30 bash -c 'until curl -sf http://localhost:4000/health > /dev/null 2>&1 || curl -sf http://localhost:4000 > /dev/null 2>&1; do sleep 2; done'
+          echo "✅ Backend is up"
+
+      - name: 🧪 Run ECE Selenium Tests
+        run: node e2e_run.cjs
+        env:
+          BASE_URL: http://localhost:5173
+          CI: 'true'
+
+      - name: 📊 Upload ECE Test Report (Excel)
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ECE-Report-${{ github.run_number }}
+          path: E2E_Functional_Test_Report.xlsx
+          retention-days: 30
+
+      - name: 📤 Commit ECE Report to Repository
+        if: github.event_name == 'push'
+        run: |
+          git config --local user.email "Rohithnayini09@gmail.com"
+          git config --local user.name "Rohithnayini"
+          git add E2E_Functional_Test_Report.xlsx "Vulnerability Test Results/E2E_Functional_Test_Report_Latest.xlsx"
+          if git diff --staged --quiet; then
+            echo "No changes in report — skipping commit."
+          else
+            git commit -m "ci: auto-update ECE E2E test report [run #${{ github.run_number }}] [skip ci]"
+            git checkout -- vite.config.js
+            for i in {1..5}; do
+              git pull --rebase origin ${{ github.ref_name }} && git push origin HEAD:${{ github.ref_name }} && exit 0 || sleep 5
+            done
+            exit 1
+          fi
+
+  appium-test-report:
+    name: 📱 Appium Tests
+    runs-on: ubuntu-latest
+    needs: [] # Run in parallel
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: 📦 Install Frontend Dependencies
+        run: npm ci
+
+      - name: 📱 Run Appium CSV to XLSX Converter
+        run: node convert_appium.cjs
+
+      - name: 📊 Upload Appium E2E Report (Excel)
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Appium-Mobile-E2E-Report-${{ github.run_number }}
+          path: Vulnerability Test Results/Appium_E2E_Test_Report_Final.xlsx
+          retention-days: 30
+
+      - name: 📤 Commit Appium E2E Excel Report to Repository
+        if: github.event_name == 'push'
+        run: |
+          git config --local user.email "Rohithnayini09@gmail.com"
+          git config --local user.name "Rohithnayini"
+          git add "Vulnerability Test Results/Appium_E2E_Test_Report_Final.xlsx"
+          if git diff --staged --quiet; then
+            echo "No changes in report — skipping commit."
+          else
+            git commit -m "ci: auto-update Appium E2E Excel report [run #${{ github.run_number }}] [skip ci]"
+            for i in {1..5}; do
+              git pull --rebase origin ${{ github.ref_name }} && git push origin HEAD:${{ github.ref_name }} && exit 0 || sleep 5
+            done
+            exit 1
+          fi
+
+  security-audit-report:
+    name: 🔒 Security Tests
+    runs-on: ubuntu-latest
+    needs: [] # Run in parallel
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: 📦 Install Frontend Dependencies
+        run: npm ci
+
+      - name: 🔒 Run Security Audit Report Generator
+        run: |
+          node "Vulnerability Test Results/security_test.cjs"
+          # Make sure both variations of the name are synced
+          cp "Vulnerability Test Results/security_test.xlsx" "Vulnerability Test Results/security test.xlsx"
+
+      - name: 📊 Upload Security Audit Reports (Excel)
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Security-Audit-Report-${{ github.run_number }}
+          path: |
+            Vulnerability Test Results/security_test.xlsx
+            Vulnerability Test Results/security test.xlsx
+          retention-days: 30
+
+      - name: 📤 Commit Security Audit Reports to Repository
+        if: github.event_name == 'push'
+        run: |
+          git config --local user.email "Rohithnayini09@gmail.com"
+          git config --local user.name "Rohithnayini"
+          git add "Vulnerability Test Results/security_test.xlsx" "Vulnerability Test Results/security test.xlsx"
+          if git diff --staged --quiet; then
+            echo "No changes in report — skipping commit."
+          else
+            git commit -m "ci: auto-update Security Test reports [run #${{ github.run_number }}] [skip ci]"
+            for i in {1..5}; do
+              git pull --rebase origin ${{ github.ref_name }} && git push origin HEAD:${{ github.ref_name }} && exit 0 || sleep 5
+            done
+            exit 1
+          fi

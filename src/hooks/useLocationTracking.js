@@ -1,9 +1,11 @@
 import { useEffect, useState, useRef } from 'react';
+import { useVerticalPositioning } from './useVerticalPositioning';
 
 export const useLocationTracking = (isActive, onLocationUpdate) => {
   const [gpsActive, setGpsActive] = useState(false);
   const [batteryLevel, setBatteryLevel] = useState(100);
   const watchIdRef = useRef(null);
+  const { floorLevel, altitude } = useVerticalPositioning();
 
   // Monitor Battery
   useEffect(() => {
@@ -37,6 +39,8 @@ export const useLocationTracking = (isActive, onLocationUpdate) => {
               lat: position.coords.latitude,
               lng: position.coords.longitude,
               accuracy: position.coords.accuracy,
+              altitude: altitude,
+              floorLevel: floorLevel,
               batteryLevel: batteryLevel,
               timestamp: Date.now()
             });

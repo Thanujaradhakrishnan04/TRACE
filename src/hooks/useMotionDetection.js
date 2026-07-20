@@ -45,7 +45,17 @@ export const useMotionDetection = (isActive, onShakeDetected) => {
     };
 
     if (window.DeviceMotionEvent) {
-      window.addEventListener('devicemotion', handleMotion, false);
+      if (typeof window.DeviceMotionEvent.requestPermission === 'function') {
+        window.DeviceMotionEvent.requestPermission()
+          .then(permissionState => {
+            if (permissionState === 'granted') {
+              window.addEventListener('devicemotion', handleMotion, false);
+            }
+          })
+          .catch(err => console.error("DeviceMotion permission denied or errored:", err));
+      } else {
+        window.addEventListener('devicemotion', handleMotion, false);
+      }
     }
 
     return () => {

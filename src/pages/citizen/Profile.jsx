@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Phone, MapPin, Shield, Edit2, LogOut, CheckCircle, PhoneForwarded, Droplet, Mail } from 'lucide-react';
+import { User, Phone, MapPin, Shield, Edit2, LogOut, CheckCircle, PhoneForwarded, Droplet, Mail, X, Save, Camera } from 'lucide-react';
 import { useStore } from '../../context/useStore';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const InfoRow = ({ icon: Icon, label, value, iconColor = 'text-slate-400' }) => (
   <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm flex items-center gap-4">
@@ -17,9 +17,56 @@ const InfoRow = ({ icon: Icon, label, value, iconColor = 'text-slate-400' }) => 
 );
 
 const Profile = () => {
-  const { currentUser, logout, contacts } = useStore();
+  const { currentUser, logout, contacts, updateUserProfile } = useStore();
   const navigate = useNavigate();
   const primaryContact = contacts.length > 0 ? contacts[0] : null;
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [formData, setFormData] = useState({});
+  const [saving, setSaving] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const handleEditClick = () => {
+    setFormData({
+      name: currentUser.name || '',
+      phone: currentUser.phone || '',
+      address: currentUser.address || '',
+      bloodGroup: currentUser.bloodGroup || '',
+      profileImage: currentUser.profileImage || ''
+    });
+    setIsEditing(true);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      if (updateUserProfile) {
+        await updateUserProfile(formData);
+      }
+      setIsEditing(false);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to save profile');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleChange = (e) => {
+    setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+  };
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      // In production you would resize the image. We just use the data URL here.
+      setFormData(prev => ({ ...prev, profileImage: event.target.result }));
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleSignOut = () => {
     logout();
@@ -47,6 +94,11 @@ const Profile = () => {
         <div className="absolute top-0 right-0 w-56 h-56 bg-white/5 rounded-full blur-3xl" />
         <div className="absolute bottom-0 left-0 w-40 h-40 bg-slate-900/20 rounded-full blur-3xl" />
         <div className="relative z-10 flex flex-col items-center">
+          <div className="absolute right-0 top-0">
+            <button onClick={handleEditClick} className="p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors backdrop-blur-md border border-white/20">
+              <Edit2 size={18} className="text-white" />
+            </button>
+          </div>
           <div className="w-24 h-24 rounded-full bg-white/20 border-4 border-white/40 flex items-center justify-center mb-4 shadow-xl">
             {currentUser.profileImage
               ? <img src={currentUser.profileImage} alt="Profile" className="w-full h-full object-cover rounded-full" />
@@ -112,6 +164,94 @@ const Profile = () => {
           </button>
         </div>
       </div>
+
+      {/* Edit Profile Modal */}
+      <AnimatePresence>
+        {isEditing && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              className="bg-white rounded-[2rem] p-6 max-w-md w-full shadow-2xl relative max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Edit Profile</h2>
+                <button onClick={() => setIsEditing(false)} className="p-2 bg-slate-100 hover:bg-slate-200 rounded-full text-slate-500 transition-colors">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="space-y-5">
+                <div className="flex flex-col items-center justify-center mb-4">
+                  <div className="relative">
+                    <div className="w-24 h-24 rounded-full bg-slate-100 border-4 border-slate-50 flex items-center justify-center overflow-hidden shadow-inner">
+                      {formData.profileImage ? (
+                        <img src={formData.profileImage} alt="Preview" className="w-full h-full object-cover" />
+                      ) : (
+                        <User size={44} className="text-slate-300" />
+                      )}
+                    </div>
+                    <button 
+                      onClick={() => fileInputRef.current?.click()}
+                      className="absolute bottom-0 right-0 p-2 bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg border-2 border-white transition-colors"
+                    >
+                      <Camera size={16} />
+                    </button>
+                    <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" className="hidden" />
+                  </div>
+                  <span className="text-xs font-bold text-slate-400 mt-2 uppercase tracking-widest">Profile Photo</span>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider ml-1">Full Name</label>
+                  <input type="text" name="name" value={formData.name} onChange={handleChange} 
+                    className="w-full px-4 py-3 mt-1 bg-slate-50 border border-slate-200 rounded-xl focus:border-red-500 focus:ring-4 focus:ring-red-500/10 outline-none font-medium text-slate-700" 
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider ml-1">Phone Number</label>
+                  <input type="tel" name="phone" value={formData.phone} onChange={handleChange} 
+                    className="w-full px-4 py-3 mt-1 bg-slate-50 border border-slate-200 rounded-xl focus:border-red-500 focus:ring-4 focus:ring-red-500/10 outline-none font-medium text-slate-700" 
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider ml-1">Home Address</label>
+                  <input type="text" name="address" value={formData.address} onChange={handleChange} 
+                    className="w-full px-4 py-3 mt-1 bg-slate-50 border border-slate-200 rounded-xl focus:border-red-500 focus:ring-4 focus:ring-red-500/10 outline-none font-medium text-slate-700" 
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider ml-1">Blood Group</label>
+                  <input type="text" name="bloodGroup" value={formData.bloodGroup} onChange={handleChange} 
+                    className="w-full px-4 py-3 mt-1 bg-slate-50 border border-slate-200 rounded-xl focus:border-red-500 focus:ring-4 focus:ring-red-500/10 outline-none font-medium text-slate-700" 
+                  />
+                </div>
+
+                <button 
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="w-full py-4 mt-4 bg-red-600 hover:bg-red-700 text-white font-black rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 uppercase tracking-widest disabled:opacity-50"
+                >
+                  {saving ? (
+                    <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  ) : (
+                    <>
+                      <Save size={20} />
+                      Save Changes
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

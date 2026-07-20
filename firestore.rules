@@ -1,26 +1,39 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Helper function to check if the authenticated user is police
+    function isPolice() {
+      return request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'police';
+    }
+
     // Matches the user profile document
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null && (request.auth.uid == userId || isPolice());
+      allow write: if request.auth != null && request.auth.uid == userId;
 
       // Allow reads and writes to settings, contacts, and alerts subcollections
       match /settings/{document} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
       match /contacts/{document} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read: if request.auth != null && (request.auth.uid == userId || isPolice());
+        allow write: if request.auth != null && request.auth.uid == userId;
       }
       match /alerts/{document} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read: if request.auth != null && (request.auth.uid == userId || isPolice());
+        allow write: if request.auth != null && request.auth.uid == userId;
+      }
+      match /messages/{document} {
+        allow read, write: if request.auth != null && (request.auth.uid == userId || isPolice());
       }
     }
 
-    // Emergencies collection — written by Admin SDK (server-side), read-only for authenticated police users
+    // Emergencies collection — readable by all authenticated users, writable by the creating user or police
     match /emergencies/{docId} {
       allow read: if request.auth != null;
-      allow write: if false; // Only server (Admin SDK) can write — Admin SDK bypasses rules
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if request.auth != null && (resource.data.userId == request.auth.uid || isPolice());
     }
   }
 }
