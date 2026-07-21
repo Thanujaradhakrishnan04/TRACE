@@ -15,9 +15,9 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "1.0.0"
-        // For physical devices, this must be your computer's local Wi-Fi IP address
-        buildConfigField("String", "BACKEND_URL", "\"http://192.168.0.105:4000\"")
-        buildConfigField("String", "SOCKET_URL", "\"http://192.168.0.105:4000\"")
+        // Deployed Render backend — works on any device/network
+        buildConfigField("String", "BACKEND_URL", "\"https://street-patrol-y9p7.onrender.com\"")
+        buildConfigField("String", "SOCKET_URL", "\"https://street-patrol-y9p7.onrender.com\"")
     }
 
     buildTypes {

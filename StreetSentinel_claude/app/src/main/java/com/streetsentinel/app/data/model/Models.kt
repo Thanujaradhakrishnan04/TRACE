@@ -65,5 +65,7 @@ data class ChatMessage(
     val senderRole: String = "", // "citizen" | "police"
     val text: String = "",
     val timestamp: Long = 0L,
-    val status: String = "sent" // sent | read
+    val status: String = "sent", // sent | read
+    val senderName: String = "",
+    val alertId: String = ""
 )

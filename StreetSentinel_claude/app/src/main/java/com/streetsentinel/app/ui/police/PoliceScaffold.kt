@@ -1,3 +1,4 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 package com.streetsentinel.app.ui.police
 
 import androidx.compose.material.icons.Icons

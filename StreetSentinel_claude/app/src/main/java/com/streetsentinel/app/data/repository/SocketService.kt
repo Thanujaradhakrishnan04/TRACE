@@ -46,7 +46,9 @@ class SocketService {
                         senderRole = json.optString("senderRole"),
                         text = json.optString("text"),
                         timestamp = json.optLong("timestamp"),
-                        status = "sent"
+                        status = "sent",
+                        senderName = json.optString("senderName"),
+                        alertId = json.optString("alertId")
                     )
                 )
             }
@@ -63,7 +65,8 @@ class SocketService {
                     "senderId" to message.senderId,
                     "senderRole" to message.senderRole,
                     "text" to message.text,
-                    "timestamp" to message.timestamp
+                    "timestamp" to message.timestamp,
+                    "senderName" to message.senderName
                 )
             )
         )

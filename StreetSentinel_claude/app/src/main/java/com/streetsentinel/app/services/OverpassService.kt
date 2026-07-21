@@ -58,6 +58,13 @@ class OverpassService(
                     f += "\nnode[\"shop\"=\"chemist\"](around:$radius,$lat,$lng);"
                     f += "\nway[\"shop\"=\"chemist\"](around:$radius,$lat,$lng);"
                     f += "\nnode[\"shop\"=\"medical_supply\"](around:$radius,$lat,$lng);"
+                    // Indian-specific pharmacy tags commonly used in OpenStreetMap India
+                    f += "\nnode[\"shop\"=\"medical\"](around:$radius,$lat,$lng);"
+                    f += "\nway[\"shop\"=\"medical\"](around:$radius,$lat,$lng);"
+                    f += "\nnode[\"shop\"=\"drugstore\"](around:$radius,$lat,$lng);"
+                    f += "\nnode[\"healthcare\"=\"chemist\"](around:$radius,$lat,$lng);"
+                    f += "\nnode[\"amenity\"=\"drugstore\"](around:$radius,$lat,$lng);"
+                    f += "\nnode[\"shop\"=\"pharmacy\"](around:$radius,$lat,$lng);"
                 }
                 if (t == "clinic") {
                     f += "\nnode[\"healthcare\"=\"clinic\"](around:$radius,$lat,$lng);"
@@ -132,7 +139,11 @@ class OverpassService(
             val tags = el.optJSONObject("tags") ?: JSONObject()
             var type = tags.optString("amenity").ifBlank { tags.optString("shop") }.ifBlank { tags.optString("healthcare") }
                 .ifBlank { tags.optString("social_facility") }.ifBlank { "safety_center" }
-            type = type.replace("chemist", "pharmacy").replace("medical_supply", "pharmacy")
+            // Normalise all pharmacy-variant tags to a single type string
+            type = when (type) {
+                "chemist", "medical_supply", "medical", "drugstore", "pharmacy" -> "pharmacy"
+                else -> type
+            }
             val name = tags.optString("name").ifBlank { "${type.replaceFirstChar { it.uppercase() }} near ${"%.4f".format(elLat)}, ${"%.4f".format(elLng)}" }
             val dist = calculateDistanceMeters(lat, lng, elLat, elLng)
             if (dist.isNaN()) return@mapNotNull null

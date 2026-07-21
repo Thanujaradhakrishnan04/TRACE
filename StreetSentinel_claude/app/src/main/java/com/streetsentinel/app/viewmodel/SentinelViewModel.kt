@@ -133,6 +133,14 @@ class SentinelViewModel(app: Application) : AndroidViewModel(app) {
     private val _selectedChatTitle = MutableStateFlow<String?>(null)
     val selectedChatTitle: StateFlow<String?> = _selectedChatTitle.asStateFlow()
 
+    private val _selectedChatEmergencyId = MutableStateFlow<String?>(null)
+    val selectedChatEmergencyId: StateFlow<String?> = _selectedChatEmergencyId.asStateFlow()
+
+    private var selectedChatEmergencyJob: Job? = null
+
+    // Session cache of WebSocket messages: Map of alertId (emergencyId) -> List of ChatMessage
+    private val _socketMessages = MutableStateFlow<Map<String, List<ChatMessage>>>(emptyMap())
+
     fun openChatWith(conversationId: String, title: String) {
         _selectedChatConversationId.value = conversationId
         _selectedChatTitle.value = title
@@ -143,16 +151,64 @@ class SentinelViewModel(app: Application) : AndroidViewModel(app) {
         _selectedChatTitle.value = null
     }
 
-    fun chatMessages(conversationId: String) = firestoreRepo.chatMessagesFlow(conversationId)
+    /**
+     * Merges Firestore messages subcollection flow with local real-time WebSocket messages
+     * for the active emergency, matching the web app's merge & deduplication behavior.
+     */
+    fun chatMessages(conversationId: String): kotlinx.coroutines.flow.Flow<List<ChatMessage>> {
+        val firestoreFlow = firestoreRepo.chatMessagesFlow(conversationId)
+        return kotlinx.coroutines.flow.combine(
+            firestoreFlow,
+            activeEmergencyId,
+            _selectedChatEmergencyId,
+            _socketMessages,
+            currentUser
+        ) { firestoreMsgs, activeId, selectedId, socketMsgsMap, user ->
+            val myRole = user?.role ?: "citizen"
+            val targetAlertId = if (myRole == "police") selectedId else activeId
+            val socketMsgs = if (targetAlertId != null) socketMsgsMap[targetAlertId].orEmpty() else emptyList()
 
+            // Merge and deduplicate by key: timestamp + text + role
+            (firestoreMsgs + socketMsgs)
+                .distinctBy { "${it.timestamp}_${it.text}_${it.senderRole}" }
+                .sortedBy { it.timestamp }
+        }
+    }
+
+    /**
+     * Sends a chat message:
+     * 1. Writes to Firestore (users/{citizenUid}/messages) so it is persisted in history.
+     * 2. If there is an active emergency, also broadcasts it via Socket.IO so the web app's
+     *    emergency screen / dispatch center receives it in real-time.
+     */
     fun sendChatMessage(conversationId: String, citizenName: String, text: String, senderRole: String) {
         val senderId = currentUser.value?.uid ?: "unknown"
+        val senderName = currentUser.value?.name ?: if (senderRole == "police") "Command Duty Officer" else "Citizen"
+        val chatMessage = ChatMessage(
+            senderId = senderId,
+            senderRole = senderRole,
+            text = text,
+            timestamp = System.currentTimeMillis(),
+            senderName = senderName
+        )
         viewModelScope.launch {
-            runCatching {
-                firestoreRepo.sendChatMessage(
-                    conversationId, citizenName,
-                    com.streetsentinel.app.data.model.ChatMessage(senderId = senderId, senderRole = senderRole, text = text, timestamp = System.currentTimeMillis())
-                )
+            try {
+                firestoreRepo.sendChatMessage(conversationId, citizenName, chatMessage)
+            } catch (e: Exception) {
+                android.util.Log.e("SentinelVM", "sendChatMessage Firestore FAILED: ${e.message}", e)
+                showToast("Firestore send failed: ${e.message}")
+            }
+
+            // WebSocket broadcast if user has an active emergency (direct secure line)
+            val myRole = currentUser.value?.role ?: "citizen"
+            val targetAlertId = if (myRole == "police") _selectedChatEmergencyId.value else activeEmergencyId.value
+            if (targetAlertId != null) {
+                try {
+                    val msgToSend = chatMessage.copy(alertId = targetAlertId)
+                    socketService.sendEmergencyMessage(targetAlertId, msgToSend)
+                } catch (e: Exception) {
+                    android.util.Log.e("SentinelVM", "sendChatMessage Socket FAILED: ${e.message}", e)
+                }
             }
         }
     }
@@ -164,6 +220,62 @@ class SentinelViewModel(app: Application) : AndroidViewModel(app) {
     private var lastCancelTimeMs: Long = 0L
 
     init {
+        // Collect incoming Socket.IO messages in real-time and append to the session map
+        viewModelScope.launch {
+            socketService.incomingMessages.collect { msg ->
+                val alertId = msg.alertId
+                if (!alertId.isNullOrBlank()) {
+                    val currentMap = _socketMessages.value
+                    val currentList = currentMap[alertId].orEmpty()
+                    val exists = currentList.any { it.timestamp == msg.timestamp && it.text == msg.text }
+                    if (!exists) {
+                        _socketMessages.value = currentMap + (alertId to (currentList + msg))
+                    }
+                }
+            }
+        }
+
+        // Auto-join/leave Socket.IO room for citizen active emergencies
+        viewModelScope.launch {
+            activeEmergencyId.collect { activeId ->
+                val isCitizen = currentUser.value?.role == "citizen"
+                if (isCitizen) {
+                    // When a new SOS is triggered, citizen immediately joins its socket room
+                    if (activeId != null) {
+                        socketService.joinRoom(activeId, "citizen")
+                    }
+                }
+            }
+        }
+
+        // Auto-join/leave Socket.IO room for police chatting with active citizen emergencies
+        viewModelScope.launch {
+            _selectedChatConversationId.collect { citizenUid ->
+                selectedChatEmergencyJob?.cancel()
+                if (citizenUid == null) {
+                    val prevId = _selectedChatEmergencyId.value
+                    if (prevId != null) {
+                        socketService.leaveRoom(prevId)
+                    }
+                    _selectedChatEmergencyId.value = null
+                } else {
+                    selectedChatEmergencyJob = viewModelScope.launch {
+                        firestoreRepo.activeEmergencyIdFlow(citizenUid).collect { activeId ->
+                            val prevId = _selectedChatEmergencyId.value
+                            _selectedChatEmergencyId.value = activeId
+                            
+                            if (prevId != null && prevId != activeId) {
+                                socketService.leaveRoom(prevId)
+                            }
+                            if (activeId != null && activeId != prevId) {
+                                socketService.joinRoom(activeId, "police")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // Equivalent of onAuthStateChanged(auth, ...) block in useStore.js
         viewModelScope.launch {
             authRepo.authStateFlow().collect { firebaseUser ->
@@ -175,6 +287,7 @@ class SentinelViewModel(app: Application) : AndroidViewModel(app) {
                     _contacts.value = emptyList()
                     _alertHistory.value = emptyList()
                     _activeEmergencyId.value = null
+                    _socketMessages.value = emptyMap()
                     socketService.disconnect()
                 }
             }
@@ -205,25 +318,41 @@ class SentinelViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun startLocationTracking() {
+        // Guard: if permission not yet granted, exit silently — MainActivity will call again once granted.
+        val ctx = getApplication<android.app.Application>()
+        val fineGranted = androidx.core.content.ContextCompat.checkSelfPermission(
+            ctx, android.Manifest.permission.ACCESS_FINE_LOCATION
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        val coarseGranted = androidx.core.content.ContextCompat.checkSelfPermission(
+            ctx, android.Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        if (!fineGranted && !coarseGranted) return
+
+        // Reset so the next real GPS fix always triggers a fresh Overpass fetch
+        lastFetchedLocation = null
+
         locationJob?.cancel()
         locationJob = viewModelScope.launch {
             showToast("Searching for GPS signal...")
-            
-            // 8-second fallback for emulators or indoor testing without GPS signal
+
+            // 8-second fallback for when GPS is slow (indoors, emulator, etc.)
             viewModelScope.launch {
                 kotlinx.coroutines.delay(8000)
                 if (_lastKnownLocation.value == null) {
                     showToast("No GPS signal. Fetching IP Geolocation...")
                     val ipLoc = locationService.getIpLocation()
                     if (ipLoc != null && _lastKnownLocation.value == null) {
+                        // IP geolocation is a real location — safe to query Overpass
                         showToast("Using Wi-Fi/IP location.")
                         _lastKnownLocation.value = ipLoc
                         checkAndFetchAmenities(ipLoc)
                     } else if (_lastKnownLocation.value == null) {
-                        showToast("IP Location failed. Using fallback testing location.")
-                        val fallback = GeoPoint(13.0827, 80.2707) // Chennai fallback
-                        _lastKnownLocation.value = fallback
-                        checkAndFetchAmenities(fallback)
+                        // Hardcoded fallback: only update GPS pill, never query Overpass
+                        // with fake coordinates — that would show hospitals from the wrong city.
+                        showToast("GPS unavailable. Waiting for signal...")
+                        _lastKnownLocation.value = GeoPoint(13.0827, 80.2707)
+                        _safetyLevel.value = "WAITING FOR GPS"
+                        _safetyReasons.value = listOf("Locating GPS signal…")
                     }
                 }
             }
@@ -261,7 +390,7 @@ class SentinelViewModel(app: Application) : AndroidViewModel(app) {
             // This runs on IO without blocking the location tracking flow
             viewModelScope.launch(Dispatchers.IO) {
                 try {
-                    val zones = overpassService.fetchNearbyAmenities(loc.lat, loc.lng, radius = 5000)
+                    val zones = overpassService.fetchNearbyAmenities(loc.lat, loc.lng, radius = 15000)
                     val landuse = overpassService.fetchLanduse(loc.lat, loc.lng)
                     val result = SafetyScoreService.calculateLocationSafetyScore(zones, landuse)
                     
@@ -299,7 +428,24 @@ class SentinelViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun attachUserListeners(uid: String) {
-        viewModelScope.launch { firestoreRepo.userDoc(uid).collect { u -> _currentUser.value = u ?: SentinelUser(uid = uid) } }
+        viewModelScope.launch {
+            firestoreRepo.userDoc(uid).collect { u ->
+                _currentUser.value = u ?: SentinelUser(uid = uid)
+                // Police self-registration: mirrors PoliceChat.jsx's setDoc({ role:'police' }, {merge:true})
+                // This ensures the Firestore doc has role="police" so isPolice() security rule passes,
+                // allowing police to read/write citizen messages.
+                if (u != null && u.role == "police") {
+                    runCatching {
+                        firestoreRepo.updateUserProfile(uid, mapOf(
+                            "role" to "police",
+                            "name" to u.name,
+                            "email" to u.email,
+                            "updatedAt" to System.currentTimeMillis()
+                        ))
+                    }
+                }
+            }
+        }
         viewModelScope.launch { firestoreRepo.contactsFlow(uid).collect { _contacts.value = it } }
         viewModelScope.launch { firestoreRepo.alertsFlow(uid).collect { _alertHistory.value = it } }
         viewModelScope.launch { firestoreRepo.settingsFlow(uid).collect { _settings.value = it } }
@@ -453,7 +599,23 @@ class SentinelViewModel(app: Application) : AndroidViewModel(app) {
                 "OFFLINE DETECTED. Mesh Network Protocol Activated. Broadcasting SOS to nearby peers."
             else "CRITICAL ALERT. Emergency Mode Activated. Dispatching authorities."
 
-            val coords = lastKnownLocation.value ?: locationService.getCurrentLocation() ?: GeoPoint(12.9716, 77.5946)
+            var coords = lastKnownLocation.value
+            if (coords == null || (coords.lat == 13.0827 && coords.lng == 80.2707) || (coords.lat == 12.9716 && coords.lng == 77.5946)) {
+                // If it is null or a default mock position, try to get a fresh high-accuracy GPS fix
+                val freshLoc = locationService.getCurrentLocation()
+                if (freshLoc != null) {
+                    coords = freshLoc
+                } else {
+                    // Try IP Geolocation fallback to get the user's actual city instead of default mock positions
+                    val ipLoc = locationService.getIpLocation()
+                    if (ipLoc != null) {
+                        coords = ipLoc
+                    }
+                }
+            }
+            if (coords == null) {
+                coords = GeoPoint(12.9716, 77.5946)
+            }
             val mapsLink = locationService.mapsLinkFor(coords)
             _emergencyData.value = _emergencyData.value?.copy(locationUrl = mapsLink)
 

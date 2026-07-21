@@ -116,9 +116,9 @@ fun SentinelNavGraph(viewModel: SentinelViewModel) {
                 PoliceScaffold(navController, currentRoute) { padding ->
                     androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.padding(padding)) {
                         when (route) {
-                            Routes.POLICE_HOME -> PoliceDashboardScreen(viewModel = viewModel)
-                            Routes.POLICE_MAP -> PoliceMapScreen(viewModel = viewModel)
-                            Routes.POLICE_TACTICAL -> TacticalCommandScreen(viewModel = viewModel)
+                            Routes.POLICE_HOME -> PoliceDashboardScreen(viewModel = viewModel, onNavigateToChat = { navController.navigate(Routes.POLICE_CHAT) })
+                            Routes.POLICE_MAP -> PoliceMapScreen(viewModel = viewModel, onNavigateToChat = { navController.navigate(Routes.POLICE_CHAT) })
+                            Routes.POLICE_TACTICAL -> TacticalCommandScreen(viewModel = viewModel, onNavigateToChat = { navController.navigate(Routes.POLICE_CHAT) })
                             Routes.POLICE_CHAT -> PoliceChatScreen(viewModel)
                         }
                     }

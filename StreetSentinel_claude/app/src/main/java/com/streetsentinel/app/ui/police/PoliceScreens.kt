@@ -50,7 +50,11 @@ import org.osmdroid.views.overlay.Marker
  * that stays legible at any width.
  */
 @Composable
-fun PoliceDashboardScreen(repo: FirestoreRepository = remember { FirestoreRepository() }, viewModel: com.streetsentinel.app.viewmodel.SentinelViewModel) {
+fun PoliceDashboardScreen(
+    repo: FirestoreRepository = remember { FirestoreRepository() },
+    viewModel: com.streetsentinel.app.viewmodel.SentinelViewModel,
+    onNavigateToChat: () -> Unit = {}
+) {
     val context = LocalContext.current
     val emergencies by repo.allActiveEmergenciesFlow().collectAsState(initial = emptyList())
     var selectedId by remember { mutableStateOf<String?>(null) }
@@ -82,7 +86,19 @@ fun PoliceDashboardScreen(repo: FirestoreRepository = remember { FirestoreReposi
                     Box(Modifier.fillMaxSize()) {
                         AndroidView(
                             modifier = Modifier.fillMaxSize(),
-                            factory = { ctx -> MapView(ctx).apply { setTileSource(TileSourceFactory.MAPNIK); setMultiTouchControls(true); controller.setZoom(12.0); controller.setCenter(OsmGeoPoint(12.9716, 77.5946)) } },
+                            factory = { ctx ->
+                                MapView(ctx).apply {
+                                    setTileSource(TileSourceFactory.MAPNIK)
+                                    setMultiTouchControls(true)
+                                    controller.setZoom(12.0)
+                                    controller.setCenter(OsmGeoPoint(12.9716, 77.5946))
+                                    // Fix: prevent LazyColumn from stealing touch events
+                                    setOnTouchListener { v, _ ->
+                                        v.parent?.requestDisallowInterceptTouchEvent(true)
+                                        false
+                                    }
+                                }
+                            },
                             update = { mapView ->
                                 mapView.overlays.clear()
                                 val loc = lastLocation
@@ -95,15 +111,28 @@ fun PoliceDashboardScreen(repo: FirestoreRepository = remember { FirestoreReposi
                                     val myMarker = Marker(mapView)
                                     myMarker.position = center
                                     myMarker.title = "You are here"
+                                    myMarker.icon = coloredDotDrawable(mapView.context, android.graphics.Color.parseColor("#3B82F6")) // blue
+                                    myMarker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
                                     mapView.overlays.add(myMarker)
                                 }
                                 emergencies.forEach { e ->
                                     val eLoc = e["location"] as? Map<*, *> ?: return@forEach
                                     val lat = (eLoc["lat"] as? Number)?.toDouble() ?: return@forEach
                                     val lng = (eLoc["lng"] as? Number)?.toDouble() ?: return@forEach
+                                    val status = e["status"] as? String ?: "active"
+                                    val pinColor = if (status == "dispatched") android.graphics.Color.parseColor("#F59E0B") else android.graphics.Color.parseColor("#EF4444") // amber or red
                                     val marker = Marker(mapView)
                                     marker.position = OsmGeoPoint(lat, lng)
                                     marker.title = "${e["userName"]} — ${e["reason"]}"
+                                    marker.icon = coloredDotDrawable(mapView.context, pinColor)
+                                    marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+                                    
+                                    // Touch marker updates selected incident so detailed feed card expands with phone / chat option below
+                                    marker.setOnMarkerClickListener { m, mv ->
+                                        m.showInfoWindow()
+                                        selectedId = e["id"] as? String
+                                        true
+                                    }
                                     mapView.overlays.add(marker)
                                 }
                                 mapView.invalidate()
@@ -170,7 +199,7 @@ fun PoliceDashboardScreen(repo: FirestoreRepository = remember { FirestoreReposi
                                 Spacer(Modifier.height(12.dp))
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                                     OutlinedButton(
-                                        onClick = { if (citizenUid != null) viewModel.openChatWith(citizenUid, citizenName) },
+                                        onClick = { if (citizenUid != null) { viewModel.openChatWith(citizenUid, citizenName); onNavigateToChat() } },
                                         enabled = citizenUid != null,
                                         shape = RoundedCornerShape(12.dp), modifier = Modifier.weight(1f),
                                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp)
@@ -214,7 +243,11 @@ private fun DashStat(label: String, value: String, color: Color, modifier: Modif
 
 /** Port of pages/police/PoliceMap.jsx — standalone full-screen map view of the same live incidents. */
 @Composable
-fun PoliceMapScreen(repo: FirestoreRepository = remember { FirestoreRepository() }, viewModel: com.streetsentinel.app.viewmodel.SentinelViewModel) {
+fun PoliceMapScreen(
+    repo: FirestoreRepository = remember { FirestoreRepository() },
+    viewModel: com.streetsentinel.app.viewmodel.SentinelViewModel,
+    onNavigateToChat: () -> Unit = {}
+) {
     val context = LocalContext.current
     val emergencies by repo.allActiveEmergenciesFlow().collectAsState(initial = emptyList())
     val lastLocation by viewModel.lastKnownLocation.collectAsState()
@@ -229,7 +262,19 @@ fun PoliceMapScreen(repo: FirestoreRepository = remember { FirestoreRepository()
         Box(Modifier.weight(1f).padding(horizontal = 20.dp, vertical = 4.dp)) {
             AndroidView(
                 modifier = Modifier.fillMaxSize(),
-                factory = { ctx -> MapView(ctx).apply { setTileSource(TileSourceFactory.MAPNIK); setMultiTouchControls(true); controller.setZoom(12.0); controller.setCenter(OsmGeoPoint(12.9716, 77.5946)) } },
+                factory = { ctx ->
+                    MapView(ctx).apply {
+                        setTileSource(TileSourceFactory.MAPNIK)
+                        setMultiTouchControls(true)
+                        controller.setZoom(12.0)
+                        controller.setCenter(OsmGeoPoint(12.9716, 77.5946))
+                        // Fix: prevent parent scroll from stealing touch events
+                        setOnTouchListener { v, _ ->
+                            v.parent?.requestDisallowInterceptTouchEvent(true)
+                            false
+                        }
+                    }
+                },
                 update = { mapView ->
                     mapView.overlays.clear()
                     val loc = lastLocation
@@ -242,15 +287,32 @@ fun PoliceMapScreen(repo: FirestoreRepository = remember { FirestoreRepository()
                         val myMarker = Marker(mapView)
                         myMarker.position = center
                         myMarker.title = "You are here"
+                        myMarker.icon = coloredDotDrawable(mapView.context, android.graphics.Color.parseColor("#3B82F6"))
+                        myMarker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
                         mapView.overlays.add(myMarker)
                     }
                     emergencies.forEach { e ->
                         val eLoc = e["location"] as? Map<*, *> ?: return@forEach
                         val lat = (eLoc["lat"] as? Number)?.toDouble() ?: return@forEach
                         val lng = (eLoc["lng"] as? Number)?.toDouble() ?: return@forEach
+                        val status = e["status"] as? String ?: "active"
+                        val pinColor = if (status == "dispatched") android.graphics.Color.parseColor("#F59E0B") else android.graphics.Color.parseColor("#EF4444")
                         val marker = Marker(mapView)
                         marker.position = OsmGeoPoint(lat, lng)
-                        marker.title = (e["userName"] as? String) ?: "Citizen"
+                        val name = (e["userName"] as? String) ?: "Citizen"
+                        marker.title = "$name — ${e["reason"] ?: "SOS Alert"}"
+                        marker.icon = coloredDotDrawable(mapView.context, pinColor)
+                        marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+                        
+                        val citizenUid = e["userId"] as? String
+                        marker.setOnMarkerClickListener { m, mv ->
+                            m.showInfoWindow()
+                            if (citizenUid != null) {
+                                viewModel.openChatWith(citizenUid, name)
+                                onNavigateToChat()
+                            }
+                            true
+                        }
                         mapView.overlays.add(marker)
                     }
                     mapView.invalidate()
@@ -341,4 +403,18 @@ fun PoliceChatScreen(viewModel: com.streetsentinel.app.viewmodel.SentinelViewMod
             }
         }
     }
+}
+
+/** Red/amber/blue colored dot for map markers — matches the web app's SOS pinpoint style. */
+private fun coloredDotDrawable(context: android.content.Context, color: Int): android.graphics.drawable.Drawable {
+    val size = 48
+    val bitmap = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
+    val canvas = android.graphics.Canvas(bitmap)
+    val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { this.color = color }
+    canvas.drawCircle(size / 2f, size / 2f, size / 2.4f, paint)
+    paint.color = android.graphics.Color.WHITE
+    paint.style = android.graphics.Paint.Style.STROKE
+    paint.strokeWidth = 4f
+    canvas.drawCircle(size / 2f, size / 2f, size / 2.4f, paint)
+    return android.graphics.drawable.BitmapDrawable(context.resources, bitmap)
 }

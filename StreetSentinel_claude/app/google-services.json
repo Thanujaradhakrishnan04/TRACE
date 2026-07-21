@@ -7,25 +7,30 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:166698346533:android:0123456789abcdef",
+        "mobilesdk_app_id": "1:166698346533:android:8c29a1a76f93a50fc1f7cc",
         "android_client_info": {
           "package_name": "com.streetsentinel.app"
         }
       },
       "oauth_client": [
         {
-          "client_id": "166698346533-mock.apps.googleusercontent.com",
+          "client_id": "166698346533-ol92v64m9hmdo7fbgkiu2t4srq0fqc0k.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
       "api_key": [
         {
-          "current_key": "AIzaSyCLOlDRIYzXyhkjQ4AfmyApHlTFBVGQ5SM"
+          "current_key": "AIzaSyDz_6os4ed48SPsUfd5JifWzIjQsG-4fK4"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "166698346533-ol92v64m9hmdo7fbgkiu2t4srq0fqc0k.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

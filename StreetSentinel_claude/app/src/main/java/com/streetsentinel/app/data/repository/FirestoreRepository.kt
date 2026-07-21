@@ -215,8 +215,15 @@ class FirestoreRepository(private val db: FirebaseFirestore = FirebaseFirestore.
     // uplink per citizen.
 
     fun chatMessagesFlow(conversationId: String): Flow<List<ChatMessage>> = callbackFlow {
-        val reg = db.collection("chats").document(conversationId).collection("messages")
-            .addSnapshotListener { snap, _ ->
+        // Path mirrors web's: users/{citizenUid}/messages
+        // This is the same subcollection both CitizenChat.jsx and PoliceChat.jsx write to.
+        val reg = db.collection("users").document(conversationId).collection("messages")
+            .addSnapshotListener { snap, error ->
+                if (error != null) {
+                    android.util.Log.e("FirestoreRepo", "chatMessagesFlow ERROR for $conversationId: ${error.message}", error)
+                    trySend(emptyList())
+                    return@addSnapshotListener
+                }
                 val list = (snap?.documents?.map { d ->
                     ChatMessage(
                         senderId = d.getString("senderId") ?: "",
@@ -232,29 +239,44 @@ class FirestoreRepository(private val db: FirebaseFirestore = FirebaseFirestore.
     }
 
     suspend fun sendChatMessage(conversationId: String, citizenName: String, message: ChatMessage) {
-        db.collection("chats").document(conversationId).collection("messages").add(
+        // Write to users/{citizenUid}/messages — the exact path the web writes to:
+        // - CitizenChat.jsx: addDoc(collection(db,'users',user.uid,'messages'), msg)
+        // - PoliceChat.jsx:  addDoc(collection(db,'users',selectedCitizen.uid,'messages'), msg)
+        android.util.Log.d("FirestoreRepo", "sendChatMessage: writing to users/$conversationId/messages, role=${message.senderRole}")
+        db.collection("users").document(conversationId).collection("messages").add(
             mapOf(
                 "senderId" to message.senderId, "senderRole" to message.senderRole,
+                "senderName" to citizenName,
                 "text" to message.text, "timestamp" to message.timestamp, "status" to "sent"
             )
         ).await()
-        // Parent doc powers the police inbox list (thread preview + ordering).
-        db.collection("chats").document(conversationId).set(
-            mapOf(
-                "citizenUid" to conversationId, "citizenName" to citizenName,
-                "lastMessage" to message.text, "lastSenderRole" to message.senderRole,
-                "lastTimestamp" to message.timestamp
-            ),
-            com.google.firebase.firestore.SetOptions.merge()
-        ).await()
+        android.util.Log.d("FirestoreRepo", "sendChatMessage: SUCCESS")
     }
 
-    /** All chat threads, newest first — feeds the police Chat tab's inbox list. */
+    /**
+     * Police chat inbox: lists all registered citizens from the 'users' collection
+     * (matching PoliceChat.jsx which reads: onSnapshot(collection(db,'users'), ...)
+     * filtered by role=="citizen"). Returns maps with citizenName/id keys that
+     * PoliceChatScreen already expects, so no UI changes required.
+     */
     fun chatThreadsFlow(): Flow<List<Map<String, Any?>>> = callbackFlow {
-        val reg = db.collection("chats")
-            .addSnapshotListener { snap, _ ->
-                val list = (snap?.documents?.map { it.data.orEmpty() + mapOf("id" to it.id) } ?: emptyList())
-                    .sortedByDescending { (it["lastTimestamp"] as? Number)?.toLong() ?: 0L }
+        val reg = db.collection("users").whereEqualTo("role", "citizen")
+            .addSnapshotListener { snap, error ->
+                if (error != null) {
+                    android.util.Log.e("FirestoreRepo", "chatThreadsFlow ERROR: ${error.message}", error)
+                    trySend(emptyList())
+                    return@addSnapshotListener
+                }
+                val list = snap?.documents?.map { d ->
+                    mapOf(
+                        "id" to d.id,
+                        "citizenName" to (d.getString("name") ?: "Citizen"),
+                        "citizenUid" to d.id,
+                        "lastMessage" to (d.getString("lastMessage") ?: ""),
+                        "lastSenderRole" to "",
+                        "lastTimestamp" to 0L
+                    )
+                } ?: emptyList()
                 trySend(list)
             }
         awaitClose { reg.remove() }

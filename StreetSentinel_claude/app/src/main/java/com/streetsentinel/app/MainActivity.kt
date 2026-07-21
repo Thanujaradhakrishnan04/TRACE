@@ -65,11 +65,12 @@ private fun RequestRuntimePermissions(viewModel: SentinelViewModel) {
     // Bug fix: the ViewModel starts watching location in init{} — before this permission
     // request even runs — so on a fresh install the very first location watch attempt throws
     // SecurityException and gives up. Once permissions are actually granted, restart it.
-    androidx.compose.runtime.LaunchedEffect(permissionsState.permissions) {
-        val locationGranted = permissionsState.permissions.any {
-            (it.permission == Manifest.permission.ACCESS_FINE_LOCATION || 
-             it.permission == Manifest.permission.ACCESS_COARSE_LOCATION) && it.status.isGranted
-        }
+    // Key on the boolean directly so it fires exactly when false→true transition happens.
+    val locationGranted = permissionsState.permissions.any {
+        (it.permission == Manifest.permission.ACCESS_FINE_LOCATION ||
+         it.permission == Manifest.permission.ACCESS_COARSE_LOCATION) && it.status.isGranted
+    }
+    androidx.compose.runtime.LaunchedEffect(locationGranted) {
         if (locationGranted) viewModel.startLocationTracking()
     }
 }

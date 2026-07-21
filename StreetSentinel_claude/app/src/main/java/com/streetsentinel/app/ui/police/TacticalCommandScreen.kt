@@ -42,9 +42,13 @@ private enum class TacticalTab { SOS_FEED, PROFILES, STATIONS }
  * entirely by live Firestore data.
  */
 @Composable
-fun TacticalCommandScreen(repo: FirestoreRepository = remember { FirestoreRepository() }, viewModel: com.streetsentinel.app.viewmodel.SentinelViewModel) {
+fun TacticalCommandScreen(
+    repo: FirestoreRepository = remember { FirestoreRepository() },
+    viewModel: com.streetsentinel.app.viewmodel.SentinelViewModel,
+    onNavigateToChat: () -> Unit = {}
+) {
     var tab by remember { mutableStateOf(TacticalTab.SOS_FEED) }
-
+ 
     Column(Modifier.fillMaxSize().background(SentinelColors.Slate900)) {
         Column(Modifier.fillMaxWidth().padding(20.dp, 20.dp, 20.dp, 8.dp)) {
             Text("TACTICAL COMMAND", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
@@ -58,7 +62,7 @@ fun TacticalCommandScreen(repo: FirestoreRepository = remember { FirestoreReposi
         Spacer(Modifier.height(12.dp))
         when (tab) {
             TacticalTab.SOS_FEED -> SosFeedTab(repo)
-            TacticalTab.PROFILES -> ProfilesTab(repo, viewModel)
+            TacticalTab.PROFILES -> ProfilesTab(repo, viewModel, onNavigateToChat)
             TacticalTab.STATIONS -> StationsTab(viewModel)
         }
     }
@@ -120,10 +124,14 @@ private fun CaseRow(e: Map<String, Any?>, live: Boolean) {
 }
 
 @Composable
-private fun ProfilesTab(repo: FirestoreRepository, viewModel: com.streetsentinel.app.viewmodel.SentinelViewModel) {
+private fun ProfilesTab(
+    repo: FirestoreRepository,
+    viewModel: com.streetsentinel.app.viewmodel.SentinelViewModel,
+    onNavigateToChat: () -> Unit
+) {
     val citizens by repo.allCitizenProfilesFlow().collectAsState(initial = emptyList())
     var expandedUid by remember { mutableStateOf<String?>(null) }
-
+ 
     if (citizens.isEmpty()) {
         Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
             Icon(Icons.Filled.Groups, contentDescription = null, tint = SentinelColors.Slate600, modifier = Modifier.size(48.dp))
@@ -132,14 +140,17 @@ private fun ProfilesTab(repo: FirestoreRepository, viewModel: com.streetsentinel
         }
         return
     }
-
+ 
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item { SectionLabel("REGISTERED CITIZENS (${citizens.size})") }
         items(citizens, key = { it.uid }) { citizen ->
             ProfileCard(
                 citizen, expanded = expandedUid == citizen.uid, repo = repo,
                 onToggle = { expandedUid = if (expandedUid == citizen.uid) null else citizen.uid },
-                onMessage = { viewModel.openChatWith(citizen.uid, citizen.name) }
+                onMessage = {
+                    viewModel.openChatWith(citizen.uid, citizen.name)
+                    onNavigateToChat()
+                }
             )
         }
         item { Spacer(Modifier.height(20.dp)) }

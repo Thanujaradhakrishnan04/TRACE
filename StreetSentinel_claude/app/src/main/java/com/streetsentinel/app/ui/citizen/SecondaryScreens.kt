@@ -89,7 +89,21 @@ fun DiagnosticsScreen(viewModel: SentinelViewModel) {
 fun CitizenChatScreen(viewModel: SentinelViewModel) {
     val activeId by viewModel.activeEmergencyId.collectAsState()
     val user by viewModel.currentUser.collectAsState()
-    val uid = user?.uid ?: return
+    val uid = user?.uid
+
+    if (uid.isNullOrBlank()) {
+        // Show loading state while user data loads (was: early return = blank screen)
+        Column(
+            Modifier.fillMaxSize().background(SentinelColors.BgLight),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            androidx.compose.material3.CircularProgressIndicator(color = SentinelColors.PrimaryRed)
+            Spacer(Modifier.height(12.dp))
+            Text("Connecting to secure chat...", color = SentinelColors.Slate500, fontSize = 13.sp)
+        }
+        return
+    }
 
     com.streetsentinel.app.ui.components.ChatThread(
         conversationId = uid,
