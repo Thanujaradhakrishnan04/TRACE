@@ -5,6 +5,10 @@ server/node_modules/
 # Build outputs
 dist/
 build/
+.gradle/
+*.bin
+*.lock
+
 
 # Environment variables (DO NOT commit secrets)
 .env
