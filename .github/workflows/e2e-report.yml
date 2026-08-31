@@ -132,6 +132,9 @@ jobs:
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "GitHub Actions Bot"
           
+          # Restore temporary file modifications before rebase
+          git checkout -- vite.config.js || true
+
           # Stage only the Excel report
           git add E2E_Functional_Test_Report.xlsx
           
@@ -140,7 +143,10 @@ jobs:
             echo "No changes in report — skipping commit."
           else
             git commit -m "ci: auto-update E2E test report [run #${{ github.run_number }}] [skip ci]"
-            git push
+            for i in {1..5}; do
+              git pull --rebase origin ${{ github.ref_name }} && git push origin HEAD:${{ github.ref_name }} && exit 0 || sleep 5
+            done
+            exit 1
           fi
 
       # ── 13. Print Summary to GitHub Actions Summary Page ──────────────────

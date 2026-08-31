@@ -6,7 +6,8 @@ on:
       - '**'
   pull_request:
     branches:
-      - 'Rohithnayini09@gmail.com'
+      - main
+      - master
 
 permissions:
   contents: write
