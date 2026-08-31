@@ -107,14 +107,14 @@ jobs:
       - name: 📤 Commit ECE Report to Repository
         if: github.event_name == 'push'
         run: |
-          git config --local user.email "Rohithnayini09@gmail.com"
-          git config --local user.name "Rohithnayini"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "GitHub Actions Bot"
           git add E2E_Functional_Test_Report.xlsx "Vulnerability Test Results/E2E_Functional_Test_Report_Latest.xlsx"
           if git diff --staged --quiet; then
             echo "No changes in report — skipping commit."
           else
             git commit -m "ci: auto-update ECE E2E test report [run #${{ github.run_number }}] [skip ci]"
-            git checkout -- vite.config.js
+            git reset --hard HEAD
             for i in {1..5}; do
               git pull --rebase origin ${{ github.ref_name }} && git push origin HEAD:${{ github.ref_name }} && exit 0 || sleep 5
             done
@@ -152,13 +152,14 @@ jobs:
       - name: 📤 Commit Appium E2E Excel Report to Repository
         if: github.event_name == 'push'
         run: |
-          git config --local user.email "Rohithnayini09@gmail.com"
-          git config --local user.name "Rohithnayini"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "GitHub Actions Bot"
           git add "Vulnerability Test Results/Appium_E2E_Test_Report_Final.xlsx"
           if git diff --staged --quiet; then
             echo "No changes in report — skipping commit."
           else
             git commit -m "ci: auto-update Appium E2E Excel report [run #${{ github.run_number }}] [skip ci]"
+            git reset --hard HEAD
             for i in {1..5}; do
               git pull --rebase origin ${{ github.ref_name }} && git push origin HEAD:${{ github.ref_name }} && exit 0 || sleep 5
             done
@@ -201,13 +202,14 @@ jobs:
       - name: 📤 Commit Security Audit Reports to Repository
         if: github.event_name == 'push'
         run: |
-          git config --local user.email "Rohithnayini09@gmail.com"
-          git config --local user.name "Rohithnayini"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "GitHub Actions Bot"
           git add "Vulnerability Test Results/security_test.xlsx" "Vulnerability Test Results/security test.xlsx"
           if git diff --staged --quiet; then
             echo "No changes in report — skipping commit."
           else
             git commit -m "ci: auto-update Security Test reports [run #${{ github.run_number }}] [skip ci]"
+            git reset --hard HEAD
             for i in {1..5}; do
               git pull --rebase origin ${{ github.ref_name }} && git push origin HEAD:${{ github.ref_name }} && exit 0 || sleep 5
             done
