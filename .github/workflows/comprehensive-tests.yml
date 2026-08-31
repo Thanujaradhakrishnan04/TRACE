@@ -116,7 +116,7 @@ jobs:
             git commit -m "ci: auto-update ECE E2E test report [run #${{ github.run_number }}] [skip ci]"
             git reset --hard HEAD
             for i in {1..5}; do
-              git pull --rebase origin ${{ github.ref_name }} && git push origin HEAD:${{ github.ref_name }} && exit 0 || sleep 5
+              git pull --rebase -X theirs origin ${{ github.ref_name }} && git push origin HEAD:${{ github.ref_name }} && exit 0 || { git rebase --abort || true; sleep 5; }
             done
             exit 1
           fi
@@ -161,7 +161,7 @@ jobs:
             git commit -m "ci: auto-update Appium E2E Excel report [run #${{ github.run_number }}] [skip ci]"
             git reset --hard HEAD
             for i in {1..5}; do
-              git pull --rebase origin ${{ github.ref_name }} && git push origin HEAD:${{ github.ref_name }} && exit 0 || sleep 5
+              git pull --rebase -X theirs origin ${{ github.ref_name }} && git push origin HEAD:${{ github.ref_name }} && exit 0 || { git rebase --abort || true; sleep 5; }
             done
             exit 1
           fi
@@ -211,7 +211,7 @@ jobs:
             git commit -m "ci: auto-update Security Test reports [run #${{ github.run_number }}] [skip ci]"
             git reset --hard HEAD
             for i in {1..5}; do
-              git pull --rebase origin ${{ github.ref_name }} && git push origin HEAD:${{ github.ref_name }} && exit 0 || sleep 5
+              git pull --rebase -X theirs origin ${{ github.ref_name }} && git push origin HEAD:${{ github.ref_name }} && exit 0 || { git rebase --abort || true; sleep 5; }
             done
             exit 1
           fi

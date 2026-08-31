@@ -1,0 +1,2 @@
+# Treat all Excel report files as binary to avoid merge conflicts in Git
+*.xlsx binary
